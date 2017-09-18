@@ -30,16 +30,16 @@ Once the project is cloned and built on your system, please follow the below ins
 The application requires 3 runtime arguments
 1. Rows in Venue
 2. Seats in each row
-3. OnHold timeout eg 5000 for 5 seconds. Lesser value is preferred to run the scenarios quickly.
+3. OnHold timeout e.g. 5000 for 5 seconds. Lesser value is preferred to run the scenarios quickly.
 
 If using eclipse, 
 Import the project and open App.java
 Right click and set the values for parameters under run config Arguments an run it as Java application
 
 
-If running via commandline
-Cd to project
-Run as follows. Feel free to update the values of the arguments
+If running via commandline,
+cd to project dir,
+run as follows. Feel free to update the values of the arguments
 
 ```
 mvn clean install
