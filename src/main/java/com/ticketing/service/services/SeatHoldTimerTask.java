@@ -41,9 +41,9 @@ public class SeatHoldTimerTask extends TimerTask {
 	 * @param seatHoldMap
 	 */
 	private void processOnHoldTimeOut(Map<Integer, SeatHold> seatHoldMap) {
+		//System.out.println(emailId);
 		int rowId = 0;
 		int counter = 0;
-		int oldCount = 0;
 		int holdMapKey = 0;
 		String emailAssignedToSeat = null;
 
@@ -53,6 +53,7 @@ public class SeatHoldTimerTask extends TimerTask {
 
 			rowId = seatHold.getRowId();
 			for (Seat seat : seatHold.getSeats()) {
+				//System.out.println("counter= "+seat.getEmailId() + "--" +seat.getSeatId());
 				if (seat.getStatus().equals(Status.ON_HOLD) && seat.getEmailId().equalsIgnoreCase(emailId)) {
 					counter++;
 					emailAssignedToSeat = seat.getEmailId();
@@ -61,10 +62,10 @@ public class SeatHoldTimerTask extends TimerTask {
 				}
 			}
 		}
-
+		
 		// Doing this outside of for loop so it executes just once
 		if (counter > 0) {
-			handleTicketsOnHoldTimeOut(counter, emailAssignedToSeat, rowId, oldCount, holdMapKey);
+			handleTicketsOnHoldTimeOut(counter, emailAssignedToSeat, rowId, holdMapKey);
 		}
 	}
 
@@ -78,14 +79,14 @@ public class SeatHoldTimerTask extends TimerTask {
 	 * @param oldCount
 	 * @param holdMapKey
 	 */
-	private void handleTicketsOnHoldTimeOut(int counter, String emailAssignedToSeat, int rowId, int oldCount,
+	private void handleTicketsOnHoldTimeOut(int counter, String emailAssignedToSeat, int rowId,
 			int holdMapKey) {
 		//I am just logging this message for now, but in real life, the user needs to be notified
 		String errorMessage = "Can't hold " + counter + " seats any longer for " + emailAssignedToSeat;
-		log.info(errorMessage);
+		log.warning(errorMessage);
 		
+		int oldCount = venueTickets.get(rowId).getAvailableSeatCount();
 		venueTickets.get(rowId).setAvailableSeatCount(oldCount + counter);
-		
 		seatHoldMap.remove(holdMapKey);
 	}
 

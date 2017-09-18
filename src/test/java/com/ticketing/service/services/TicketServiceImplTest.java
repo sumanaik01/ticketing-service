@@ -33,7 +33,7 @@ public class TicketServiceImplTest extends TestCase  {
 	public void testFindAndHoldSeatsOverbooking(){
 		SeatHold seatHold = ticketService.findAndHoldSeats(20, "customerEmail");
 		assertTrue(seatHold.isError());
-		assertEquals("Sorry, we do not have 20 tickets available.", seatHold.getErrorMessage());
+		assertEquals(TicketServiceImpl.TICKETS_ERROR_TOO_MANY_REQUESTED.replace("{0}", "20"), seatHold.getErrorMessage());
 		
 	}
 	
@@ -41,7 +41,7 @@ public class TicketServiceImplTest extends TestCase  {
 	public void testFindAndHoldSeatsNoConsecutive(){
 		SeatHold seatHold = ticketService.findAndHoldSeats(5, "customerEmail");
 		assertTrue(seatHold.isError());
-		assertEquals("Sorry, 5 consecutive seats are not available in the venue.", seatHold.getErrorMessage());
+		assertEquals(TicketServiceImpl.TICKET_ERROR_CONSECUTIVE_NOT_AVAILABLE.replace("{0}", "5"), seatHold.getErrorMessage());
 		
 	}
 	
@@ -62,12 +62,27 @@ public class TicketServiceImplTest extends TestCase  {
 		SeatHold seatHold = ticketService.findAndHoldSeats(3, "customerEmail");
 		assertFalse(seatHold.isError());
 		
-		ticketService.reserveSeats(seatHold.getSeatHoldId(), "customerEmail");
+		String message = ticketService.reserveSeats(seatHold.getSeatHoldId(), "customerEmail");
 		
 		//Make sure the first 3 seats of first row are reserved
 		assertStatus(0,0,Status.RESERVED);
 		assertStatus(0,1,Status.RESERVED);
 		assertStatus(0,2,Status.RESERVED);
+		assertEquals(TicketServiceImpl.TICKET_MESSAGE_SUCCESS, message);
+	}
+	
+	@Test
+	public void testReserveSeatsEmailMismatch(){
+		SeatHold seatHold = ticketService.findAndHoldSeats(3, "customerEmail");
+		assertFalse(seatHold.isError());
+		
+		String message = ticketService.reserveSeats(seatHold.getSeatHoldId(), "someOtherEmailId");
+		
+		//Make sure the seats are on hold
+		assertStatus(0,0,Status.ON_HOLD);
+		assertStatus(0,1,Status.ON_HOLD);
+		assertStatus(0,2,Status.ON_HOLD);
+		assertEquals(TicketServiceImpl.TICKET_MESSAGE_EMAIL_MISMATCH, message);
 	}
 	
 	@Test
@@ -121,17 +136,19 @@ public class TicketServiceImplTest extends TestCase  {
         {
             Thread.currentThread().interrupt();
         }
+		String message = ticketService.reserveSeats(seatHold.getSeatHoldId(), "customerEmail");
 		
 		//Make sure the first 3 seats of first row are available again
 		assertStatus(0,0,Status.AVAILABLE);
 		assertStatus(0,1,Status.AVAILABLE);
 		assertStatus(0,2,Status.AVAILABLE);
 		assertEquals(16, ticketService.numSeatsAvailable());
+		assertEquals(TicketServiceImpl.TICKET_MESSAGE_UNSUCCESSFUL, message);
 	}
 	
 	@Test
 	public void testFindAndHoldSeatsAvailableSeatsReservedAgain(){
-		SeatHold seatHold = ticketService.findAndHoldSeats(3, "A1");
+		ticketService.findAndHoldSeats(3, "A1");
 		
 		SeatHold seatHold2 = ticketService.findAndHoldSeats(1, "B1");
 		ticketService.reserveSeats(seatHold2.getSeatHoldId(), "B1");
@@ -162,8 +179,8 @@ public class TicketServiceImplTest extends TestCase  {
 		assertEquals(15, ticketService.numSeatsAvailable());
 		
 		// 3 tickets are booked after the previous set of on hold tickets became available
-		SeatHold seatHold3 = ticketService.findAndHoldSeats(3, "C");
-		ticketService.reserveSeats(seatHold3.getSeatHoldId(), "C");
+		SeatHold seatHold3 = ticketService.findAndHoldSeats(3, "c@example.com");
+		ticketService.reserveSeats(seatHold3.getSeatHoldId(), "c@example.com");
 		
 		
 		// The first 3 tickets from row 1 are booked 
@@ -175,7 +192,7 @@ public class TicketServiceImplTest extends TestCase  {
 	
 	@Test
 	public void testFindAndHoldSeatsAvailableSeatsNotReserved(){
-		SeatHold seatHold = ticketService.findAndHoldSeats(3, "A2");
+		ticketService.findAndHoldSeats(3, "A2");
 		
 		SeatHold seatHold2 = ticketService.findAndHoldSeats(1, "B2");
 		ticketService.reserveSeats(seatHold2.getSeatHoldId(), "B2");

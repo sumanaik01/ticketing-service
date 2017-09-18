@@ -5,7 +5,6 @@ import static com.ticketing.service.model.Venue.venueTickets;
 
 import java.util.ArrayList;
 import java.util.Timer;
-import java.util.logging.Logger;
 
 import com.ticketing.service.model.Row;
 import com.ticketing.service.model.Seat;
@@ -14,14 +13,23 @@ import com.ticketing.service.model.Status;
 
 public class TicketServiceImpl implements TicketService {
 
-	private static final Logger log = Logger.getLogger(TicketServiceImpl.class.getName());
 	private static int VENUE_HALL_COLUMNS = 4;
 
 	private static int VENUE_HALL_ROWS = 4;
 
 	private Long ON_HOLD_TIME_OUT_MILLISECS = 5000L;
+	
+	protected static final String TICKET_MESSAGE_UNSUCCESSFUL = "Sorry! your seats could not be reserved at this moment.";
+	
+	protected static final String TICKET_MESSAGE_SUCCESS = "Hurray! Your seats have been reserved. Congratulations!";
+	
+	protected static final String TICKET_MESSAGE_EMAIL_MISMATCH = "Sorry! the email provided doesn't seem to match our records for these seats.";
+	
+	protected static final String TICKETS_ERROR_TOO_MANY_REQUESTED = "Sorry, we do not have {0} tickets available.";
+	
+	protected static final String TICKET_ERROR_CONSECUTIVE_NOT_AVAILABLE = "Sorry, {0} consecutive seats are not available in the Venue.";
 
-	private static final int RANDOM = 98765;
+	private static final int CONSTANT = 98765;
 
 	public TicketServiceImpl() {
 		initializeVenueTickets(VENUE_HALL_ROWS, VENUE_HALL_COLUMNS);
@@ -45,25 +53,12 @@ public class TicketServiceImpl implements TicketService {
 		return counter;
 	}
 
-	public synchronized void printVenueStatus() {
-
-		System.out.println("--------");
-		for (Row row : venueTickets) {
-			for (Seat seat : row.getSeats()) {
-				System.out.print(seat.getStatus().toString().substring(0, 1) + " ");
-			}
-			System.out.println();
-		}
-		System.out.println("--------");
-
-	}
-
 	@Override
 	public synchronized SeatHold findAndHoldSeats(int numSeats, String customerEmail) {
 		SeatHold seatHold = new SeatHold();
 		if (numSeats > numSeatsAvailable()) {
 			seatHold.setError(Boolean.TRUE);
-			seatHold.setErrorMessage("Sorry, we do not have " + numSeats + " tickets available.");
+			seatHold.setErrorMessage(TICKETS_ERROR_TOO_MANY_REQUESTED.replace("{0}", Integer.toString(numSeats)));
 
 			return seatHold;
 		}
@@ -82,10 +77,11 @@ public class TicketServiceImpl implements TicketService {
 		}
 		if (!isHeld) {
 			seatHold.setError(Boolean.TRUE);
-			seatHold.setErrorMessage("Sorry, " + numSeats + " consecutive seats are not available in the venue.");
+			seatHold.setErrorMessage(TICKET_ERROR_CONSECUTIVE_NOT_AVAILABLE.replace("{0}", Integer.toString(numSeats)));
 		}
 
-		//SeatHoldTimerTask executes after the timeout for hold has been reached
+		// SeatHoldTimerTask executes after the timeout for hold has been
+		// reached
 		Timer timer = new Timer();
 		timer.schedule(new SeatHoldTimerTask(customerEmail), ON_HOLD_TIME_OUT_MILLISECS);
 
@@ -94,22 +90,41 @@ public class TicketServiceImpl implements TicketService {
 
 	@Override
 	public synchronized String reserveSeats(int seatHoldId, String customerEmail) {
-		String message = "Sorry your seats could not be reserved.";
+		String message = TICKET_MESSAGE_UNSUCCESSFUL;
 		SeatHold seatHold = seatHoldMap.get(seatHoldId);
 
 		if (seatHold != null) {
 			for (Seat seat : seatHold.getSeats()) {
+				if(!seat.getEmailId().equals(customerEmail)){
+					message = TICKET_MESSAGE_EMAIL_MISMATCH;
+					return message;
+				}
+				
 				Seat reservedSeat = venueTickets.get(seatHold.getRowId()).getSeats().get(seat.getSeatId());
 				updateSeatStatusAndEmail(customerEmail, reservedSeat, Status.RESERVED);
 
-				message = "Hurray! Your seats have been reserved. Congratulations!";
+				message = TICKET_MESSAGE_SUCCESS;
 			}
 
-			//Remove this entry from the seatHoldMap as the seats have been reserved
+			// Remove this entry from the seatHoldMap as the seats have been
+			// reserved
 			seatHoldMap.remove(seatHoldId);
 		}
 
 		return message;
+	}
+	
+	/**
+	 * This is just a helper method to print out the Venue Seat matrix
+	 * System out has been used instead of logs for a better representation of the result
+	 */
+	public void printVenueStatus() {
+		for (Row row : venueTickets) {
+			for (Seat seat : row.getSeats()) {
+				System.out.print(seat.getStatus().toString().substring(0, 1) + " ");
+			}
+			System.out.println();
+		}
 	}
 
 	/**
@@ -196,15 +211,13 @@ public class TicketServiceImpl implements TicketService {
 		for (Seat seat : row.getSeats()) {
 			// Find the first available seat and check if "numSeats" consecutive
 			// seats are available in this row
-			if (seat.getStatus().equals(Status.AVAILABLE) && seat.getSeatId() + numSeats <= VENUE_HALL_COLUMNS) {
-				if (canSeatsBeMarkedOnHold(numSeats, row, seat.getSeatId())) {
-					populateSeatHoldMap(numSeats, customerEmail, seatHold, row, seat);
-					isHold = Boolean.TRUE;
-					break;
-				}
+			if (seat.getStatus().equals(Status.AVAILABLE) && seat.getSeatId() + numSeats <= VENUE_HALL_COLUMNS
+					&& canSeatsBeMarkedOnHold(numSeats, row, seat.getSeatId())) {
+				populateSeatHoldMap(numSeats, customerEmail, seatHold, row, seat);
+				isHold = Boolean.TRUE;
+				break;
 			}
 		}
-
 		return isHold;
 	}
 
@@ -220,7 +233,6 @@ public class TicketServiceImpl implements TicketService {
 	 */
 	private synchronized void populateSeatHoldMap(int numSeats, String customerEmail, SeatHold seatHold, Row row,
 			Seat seat) {
-
 		seatHold.setTotalSeats(numSeats);
 		seatHold.setRowId(row.getRowId());
 		seatHold.setSeatHoldId(Integer.parseInt(createUniqueSeatHoldId(row, seat)));
@@ -239,7 +251,7 @@ public class TicketServiceImpl implements TicketService {
 	 * @return seatHoldId
 	 */
 	private String createUniqueSeatHoldId(Row row, Seat seat) {
-		return Integer.toString(row.getRowId()) + RANDOM + row.getRowId() + seat.getSeatId();
+		return Integer.toString(row.getRowId()) + CONSTANT + row.getRowId() + seat.getSeatId();
 	}
 
 	/**
